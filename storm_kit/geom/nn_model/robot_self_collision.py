@@ -65,12 +65,12 @@ class RobotSelfCollisionNet():
                 self.norm_dict[k]['std'] = self.norm_dict[k]['std'].to(**tensor_args)
         except Exception:
             print('WARNING: Weights not loaded')
+            raise FileNotFoundError
         self.model = self.model.to(**tensor_args)
         self.tensor_args = tensor_args
         self.model.eval()
         
-            
-    def compute_signed_distance(self, q):
+    def compute_signed_distance(self, q, with_grad=False):
         """Compute the signed distance given the joint config.
 
         Args:
@@ -78,14 +78,19 @@ class RobotSelfCollisionNet():
 
         Returns:
             [tensor]: largest signed distance between any two non-consecutive links of the robot.
-        """        
-        with torch.no_grad():
-            q_scale = scale_to_net(q, self.norm_dict,'x')
+        """
+        if with_grad:
+            q_scale = scale_to_net(q, self.norm_dict, 'x')
             dist = self.model.forward(q_scale)
             dist_scale = scale_to_base(dist, self.norm_dict, 'y')
+        else:
+            with torch.no_grad():
+                q_scale = scale_to_net(q, self.norm_dict,'x')
+                dist = self.model.forward(q_scale)
+                dist_scale = scale_to_base(dist, self.norm_dict, 'y')
         return dist_scale
 
-    def check_collision(self, q):
+    def check_collision(self, q, with_grad=False):
         """Check collision given joint config. Requires classifier like training.
 
         Args:
@@ -93,8 +98,12 @@ class RobotSelfCollisionNet():
 
         Returns:
             [tensor]: probability of collision of links, from sigmoid value.
-        """        
-        with torch.no_grad():
-            q_scale = scale_to_net(q, self.norm_dict,'x')
+        """
+        if with_grad:
+            q_scale = scale_to_net(q, self.norm_dict, 'x')
             dist = torch.sigmoid(self.model.forward(q_scale))
+        else:
+            with torch.no_grad():
+                q_scale = scale_to_net(q, self.norm_dict,'x')
+                dist = torch.sigmoid(self.model.forward(q_scale))
         return dist
